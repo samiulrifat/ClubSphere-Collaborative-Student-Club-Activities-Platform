@@ -30,6 +30,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/clubs', clubRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/uploads', express.static('uploads'));
 
 // Start the server
 const PORT = process.env.PORT || 5000;
