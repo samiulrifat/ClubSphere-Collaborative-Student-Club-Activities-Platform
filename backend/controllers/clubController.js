@@ -708,22 +708,29 @@ exports.deleteAchievement = async (req, res) => {
 
     const club = await Club.findById(clubId);
     if (!club) return res.status(404).json({ message: 'Club not found' });
+
     if (!club.officers.includes(userId)) return res.status(403).json({ message: 'Not authorized' });
 
-    club.achievements.id(achievementId).remove();
+    const achievement = club.achievements.id(achievementId);
+    if (!achievement) return res.status(404).json({ message: 'Achievement not found' });
 
-    // Also remove all awarded achievements linked to this achievement
-    club.awardedAchievements = club.awardedAchievements.filter(
-      (a) => a.achievement.toString() !== achievementId
-    );
+    // Replace .remove() with filter or pull
+    club.achievements = club.achievements.filter(a => a._id.toString() !== achievementId);
+    // Or alternatively: club.achievements.pull(achievementId);
+
+    // Remove awarded achievements linked to this achievement
+    club.awardedAchievements = club.awardedAchievements.filter(a => a.achievement.toString() !== achievementId);
 
     await club.save();
 
     res.json({ success: true, message: 'Achievement deleted' });
   } catch (error) {
+    console.error('Delete achievement error:', error);
     res.status(500).json({ message: 'Failed to delete achievement', error: error.message });
   }
 };
+
+
 
 // Award achievement to member (admin only)
 exports.awardAchievement = async (req, res) => {
@@ -787,28 +794,30 @@ exports.removeAwardedAchievement = async (req, res) => {
 
 // Get achievements and awarded achievements for a user in club
 exports.getUserAchievements = async (req, res) => {
-  try {
-    const clubId = req.params.clubId;
-    const userId = req.user.id;
+  try {
+    const clubId = req.params.clubId;
+    const userId = req.user.id;
 
-    const club = await Club.findById(clubId).populate('awardedAchievements.achievement');
-    if (!club) return res.status(404).json({ message: 'Club not found' });
+    // Remove .populate() because achievements are embedded, not referenced
+    const club = await Club.findById(clubId);
+    if (!club) return res.status(404).json({ message: 'Club not found' });
 
-    if (!club.members.includes(userId) && !club.officers.includes(userId)) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
+    if (!club.members.includes(userId) && !club.officers.includes(userId)) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
 
-    // Achievements awarded to user
-    const userAwarded = club.awardedAchievements.filter(a => a.member.toString() === userId.toString());
+    // Achievements awarded to user
+    const userAwarded = club.awardedAchievements.filter(a => a.member.toString() === userId.toString());
 
-    // All achievements in club
-    const allAchievements = club.achievements;
+    // All achievements in club (embedded)
+    const allAchievements = club.achievements;
 
-    res.json({ success: true, userAchievements: userAwarded, allAchievements });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to get achievements', error: error.message });
-  }
+    res.json({ success: true, userAchievements: userAwarded, allAchievements });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to get achievements', error: error.message });
+  }
 };
+
 
 // Student: submit feedback to club
 exports.submitFeedback = async (req, res) => {
