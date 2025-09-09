@@ -396,14 +396,31 @@ exports.deletePoll = async (req, res) => {
     const userId = req.user.id;
 
     const club = await Club.findById(clubId);
-    if (!club) return res.status(404).json({ message: 'Club not found' });
-    if (!club.officers.includes(userId)) return res.status(403).json({ message: 'Not authorized' });
+    if (!club) {
+      console.error('Club not found:', clubId);
+      return res.status(404).json({ message: 'Club not found' });
+    }
+    if (!club.officers.includes(userId)) {
+      console.error('User not authorized:', userId);
+      return res.status(403).json({ message: 'Not authorized' });
+    }
 
-    club.polls.id(pollId).remove();
-    await club.save();
+    const poll = club.polls.id(pollId);
+    if (!poll) {
+      console.error('Poll not found:', pollId);
+      return res.status(404).json({ message: 'Poll not found' });
+    }
 
-    res.json({ success: true, message: 'Poll deleted' });
+    try {
+      club.polls = club.polls.filter(p => p._id.toString() !== pollId);
+      await club.save();
+      res.json({ success: true, message: 'Poll deleted' });
+    } catch (removeError) {
+      console.error('Error removing poll:', removeError);
+      res.status(500).json({ message: 'Failed to remove poll', error: removeError.message });
+    }
   } catch (error) {
+    console.error('Delete poll error:', error);
     res.status(500).json({ message: 'Failed to delete poll', error: error.message });
   }
 };
