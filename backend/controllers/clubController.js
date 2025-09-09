@@ -6,9 +6,8 @@ const fs = require('fs');
 exports.createClub = async (req, res) => {
   try {
     const { name, description } = req.body;
-    const userId = req.user.id; // from auth middleware decoded token
+    const userId = req.user.id; 
 
-    // Create club and set current user as creator and officer
     const club = new Club({
       name,
       description,
@@ -18,7 +17,6 @@ exports.createClub = async (req, res) => {
     });
     await club.save();
 
-    // Add created club to user's clubsCreated field
     await User.findByIdAndUpdate(userId, { $push: { clubsCreated: club._id, clubsJoined: club._id } });
 
     res.status(201).json({ success: true, club });
@@ -53,35 +51,27 @@ exports.getClubDetails = async (req, res) => {
   }
 };
 
-// Send invitation to user by email
 exports.inviteMember = async (req, res) => {
   try {
     const clubId = req.params.clubId;
     const { email } = req.body;
     const userId = req.user.id;
 
-    // Find club, check if current user is officer
     const club = await Club.findById(clubId);
     if (!club) return res.status(404).json({ message: 'Club not found' });
     if (!club.officers.includes(userId)) return res.status(403).json({ message: 'Not authorized' });
 
-    // Find user by email
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Check if already member or invited
     if (club.members.includes(user._id)) return res.status(400).json({ message: 'User already a member' });
     if (club.invitations.includes(user._id)) return res.status(400).json({ message: 'User already invited' });
 
-    // Add to invitations
     club.invitations.push(user._id);
     await club.save();
 
-    // Add to user's invited clubs
     user.clubsInvited.push(club._id);
     await user.save();
-
-    // (Optional) Send notification/email here
 
     res.json({ success: true, message: 'Invitation sent' });
   } catch (error) {
@@ -89,7 +79,7 @@ exports.inviteMember = async (req, res) => {
   }
 };
 
-// Accept invitation
+
 exports.acceptInvitation = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -100,12 +90,10 @@ exports.acceptInvitation = async (req, res) => {
 
     if (!club.invitations.includes(userId)) return res.status(400).json({ message: 'No invitation found' });
 
-    // Remove from invitations, add to members
     club.invitations = club.invitations.filter(id => id.toString() !== userId);
     club.members.push(userId);
     await club.save();
 
-    // Update user's clubsJoined and clubsInvited
     const user = await User.findById(userId);
     user.clubsInvited = user.clubsInvited.filter(id => id.toString() !== clubId);
     user.clubsJoined.push(clubId);
@@ -117,7 +105,6 @@ exports.acceptInvitation = async (req, res) => {
   }
 };
 
-// Decline invitation
 exports.declineInvitation = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -128,11 +115,9 @@ exports.declineInvitation = async (req, res) => {
 
     if (!club.invitations.includes(userId)) return res.status(400).json({ message: 'No invitation found' });
 
-    // Remove from invitations
     club.invitations = club.invitations.filter(id => id.toString() !== userId);
     await club.save();
 
-    // Update user's clubsInvited
     const user = await User.findById(userId);
     user.clubsInvited = user.clubsInvited.filter(id => id.toString() !== clubId);
     await user.save();
@@ -143,7 +128,6 @@ exports.declineInvitation = async (req, res) => {
   }
 };
 
-// Remove member (officers only)
 exports.removeMember = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -154,14 +138,12 @@ exports.removeMember = async (req, res) => {
     if (!club) return res.status(404).json({ message: 'Club not found' });
     if (!club.officers.includes(userId)) return res.status(403).json({ message: 'Not authorized' });
 
-    // Remove member if exists
     if (!club.members.includes(memberId)) return res.status(400).json({ message: 'User not a member' });
 
     club.members = club.members.filter(id => id.toString() !== memberId);
     club.officers = club.officers.filter(id => id.toString() !== memberId);
     await club.save();
 
-    // Update user's clubsJoined etc.
     const user = await User.findById(memberId);
     user.clubsJoined = user.clubsJoined.filter(id => id.toString() !== clubId);
     await user.save();
@@ -179,7 +161,6 @@ exports.getUserInvitations = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Get club details for invitations
     const invitations = await Club.find({ _id: { $in: user.clubsInvited } }).select('name description');
 
     res.json({ success: true, invitations });
@@ -188,7 +169,6 @@ exports.getUserInvitations = async (req, res) => {
   }
 };
 
-// Add announcement (club admin only)
 exports.addAnnouncement = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -198,11 +178,10 @@ exports.addAnnouncement = async (req, res) => {
     const club = await Club.findById(clubId);
     if (!club) return res.status(404).json({ message: 'Club not found' });
 
-    // Check if user is an officer for this club
     if (!club.officers.includes(userId)) return res.status(403).json({ message: 'Not authorized' });
 
     const newAnnouncement = { title, content, date: new Date() };
-    club.announcements.unshift(newAnnouncement); // Add new announcement at the start
+    club.announcements.unshift(newAnnouncement); 
     await club.save();
 
     res.status(201).json({ success: true, announcement: newAnnouncement });
@@ -211,7 +190,6 @@ exports.addAnnouncement = async (req, res) => {
   }
 };
 
-// Get announcements for a club (members only)
 exports.getAnnouncements = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -220,7 +198,6 @@ exports.getAnnouncements = async (req, res) => {
     const club = await Club.findById(clubId);
     if (!club) return res.status(404).json({ message: 'Club not found' });
 
-    // Check if user is member of club
     if (!club.members.includes(userId)) return res.status(403).json({ message: 'Not authorized' });
 
     res.json({ success: true, announcements: club.announcements });
@@ -229,12 +206,11 @@ exports.getAnnouncements = async (req, res) => {
   }
 };
 
-// Admin: add new activity log entry
 exports.addActivityLog = async (req, res) => {
   try {
     const clubId = req.params.clubId;
     const userId = req.user.id;
-    const { description, photos } = req.body; // photos is an array of URLs
+    const { description, photos } = req.body; 
 
     const club = await Club.findById(clubId);
     if (!club) return res.status(404).json({ message: 'Club not found' });
@@ -252,7 +228,6 @@ exports.addActivityLog = async (req, res) => {
   }
 };
 
-// Member: get activity log
 exports.getActivityLog = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -269,7 +244,6 @@ exports.getActivityLog = async (req, res) => {
   }
 };
 
-// Create meeting (club admin only)
 exports.createMeeting = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -298,7 +272,6 @@ exports.createMeeting = async (req, res) => {
   }
 };
 
-// Get meetings user can access (member of club)
 exports.getMeetings = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -317,7 +290,6 @@ exports.getMeetings = async (req, res) => {
   }
 };
 
-// Mark attendance (member marking own attendance)
 exports.markAttendance = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -342,12 +314,11 @@ exports.markAttendance = async (req, res) => {
   }
 };
 
-// Create poll (club admin)
 exports.createPoll = async (req, res) => {
   try {
     const clubId = req.params.clubId;
     const userId = req.user.id;
-    const { question, options } = req.body; // options: array of strings
+    const { question, options } = req.body; 
 
     const club = await Club.findById(clubId);
     if (!club) return res.status(404).json({ message: 'Club not found' });
@@ -368,7 +339,6 @@ exports.createPoll = async (req, res) => {
   }
 };
 
-// Get polls for club (members)
 exports.getPolls = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -386,7 +356,6 @@ exports.getPolls = async (req, res) => {
   }
 };
 
-// Vote on poll option (member)
 exports.votePoll = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -402,12 +371,10 @@ exports.votePoll = async (req, res) => {
     const poll = club.polls.id(pollId);
     if (!poll) return res.status(404).json({ message: 'Poll not found' });
 
-    // Remove vote from any other option of this poll by user
     poll.options.forEach((option) => {
       option.votes = option.votes.filter((voterId) => voterId.toString() !== userId);
     });
 
-    // Add vote to selected option
     poll.options[optionIndex].votes.push(userId);
 
     await club.save();
@@ -418,12 +385,10 @@ exports.votePoll = async (req, res) => {
   }
 };
 
-// Edit poll and options (club admin)
 exports.editPoll = async (req, res) => {
-  // similar pattern - locate poll by id, check auth, update question/options, save
+  
 };
 
-// Delete poll (club admin)
 exports.deletePoll = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -443,7 +408,6 @@ exports.deletePoll = async (req, res) => {
   }
 };
 
-// Upload resource (file or link)
 exports.uploadResource = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -453,14 +417,12 @@ exports.uploadResource = async (req, res) => {
     const club = await Club.findById(clubId);
     if (!club) return res.status(404).json({ message: 'Club not found' });
 
-    // Check if user is member or officer of club
     const isMember = club.members.includes(userId) || club.officers.includes(userId);
     if (!isMember) return res.status(403).json({ message: 'Not authorized' });
 
     let fileUrl = '';
     if (type === 'file') {
       if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-      // Assume file is uploaded using multer or similar middleware
       fileUrl = `/uploads/${req.file.filename}`;
     }
 
@@ -482,7 +444,6 @@ exports.uploadResource = async (req, res) => {
   }
 };
 
-// Get all resources for club
 exports.getResources = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -491,7 +452,6 @@ exports.getResources = async (req, res) => {
     const club = await Club.findById(clubId).populate('resources.uploader', 'name email');
     if (!club) return res.status(404).json({ message: 'Club not found' });
 
-    // Authorization: must be member or officer
     if (!(club.members.includes(userId) || club.officers.includes(userId))) {
       return res.status(403).json({ message: 'Not authorized' });
     }
@@ -502,7 +462,6 @@ exports.getResources = async (req, res) => {
   }
 };
 
-// Delete resource
 exports.deleteResource = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -515,12 +474,10 @@ exports.deleteResource = async (req, res) => {
     const resource = club.resources.id(resourceId);
     if (!resource) return res.status(404).json({ message: 'Resource not found' });
 
-    // Only uploader or club admin can delete
     if (resource.uploader.toString() !== userId && !club.officers.includes(userId)) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    // Delete uploaded file from server if file type
     if (resource.type === 'file' && resource.fileUrl) {
       const filePath = path.join(__dirname, '../public', resource.fileUrl);
       fs.unlink(filePath, (err) => {
@@ -537,7 +494,6 @@ exports.deleteResource = async (req, res) => {
   }
 };
 
-// Admin: create event needing volunteers
 exports.createEvent = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -559,7 +515,6 @@ exports.createEvent = async (req, res) => {
   }
 };
 
-// Get events for club (members)
 exports.getEvents = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -578,7 +533,6 @@ exports.getEvents = async (req, res) => {
   }
 };
 
-// Member: sign up as volunteer on event
 exports.signupVolunteer = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -607,7 +561,6 @@ exports.signupVolunteer = async (req, res) => {
   }
 };
 
-// Admin: get volunteers list
 exports.getVolunteers = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -628,32 +581,25 @@ exports.getVolunteers = async (req, res) => {
   }
 };
 
-// Delete event (club admin only)
 exports.deleteEvent = async (req, res) => {
   try {
-    const clubId = req.params.clubId;
-    const eventId = req.params.eventId;
-    const userId = req.user.id;
-
+    const { clubId, eventId } = req.params;
     const club = await Club.findById(clubId);
     if (!club) return res.status(404).json({ message: 'Club not found' });
 
-    // Only club admin (officer) can delete
-    if (!club.officers.includes(userId)) return res.status(403).json({ message: 'Not authorized' });
+    const initialLength = club.events.length;
+    club.events = club.events.filter(e => e._id.toString() !== eventId);
+    if (club.events.length === initialLength) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
 
-    const event = club.events.id(eventId);
-    if (!event) return res.status(404).json({ message: 'Event not found' });
-
-    event.remove();
     await club.save();
-
-    res.json({ success: true, message: 'Event deleted' });
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete event', error: error.message });
   }
 };
 
-// Create achievement (admin only)
 exports.createAchievement = async (req, res) => {
   try {
     const { title, badgeUrl, description } = req.body;
@@ -675,7 +621,6 @@ exports.createAchievement = async (req, res) => {
   }
 };
 
-// Edit achievement (admin only)
 exports.editAchievement = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -699,7 +644,6 @@ exports.editAchievement = async (req, res) => {
   }
 };
 
-// Delete achievement (admin only)
 exports.deleteAchievement = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -714,12 +658,8 @@ exports.deleteAchievement = async (req, res) => {
     const achievement = club.achievements.id(achievementId);
     if (!achievement) return res.status(404).json({ message: 'Achievement not found' });
 
-    // Replace .remove() with filter or pull
-    club.achievements = club.achievements.filter(a => a._id.toString() !== achievementId);
-    // Or alternatively: club.achievements.pull(achievementId);
-
-    // Remove awarded achievements linked to this achievement
-    club.awardedAchievements = club.awardedAchievements.filter(a => a.achievement.toString() !== achievementId);
+  club.achievements = club.achievements.filter(a => a._id.toString() !== achievementId);
+  club.awardedAchievements = club.awardedAchievements.filter(a => a.achievement.toString() !== achievementId);
 
     await club.save();
 
@@ -730,9 +670,6 @@ exports.deleteAchievement = async (req, res) => {
   }
 };
 
-
-
-// Award achievement to member (admin only)
 exports.awardAchievement = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -746,7 +683,6 @@ exports.awardAchievement = async (req, res) => {
 
     if (!club.members.includes(memberId)) return res.status(400).json({ message: 'User not a club member' });
 
-    // Avoid double awarding
     const alreadyAwarded = club.awardedAchievements.some(
       (a) => a.achievement.toString() === achievementId && a.member.toString() === memberId
     );
@@ -768,7 +704,6 @@ exports.awardAchievement = async (req, res) => {
   }
 };
 
-// Remove awarded achievement from member (admin only)
 exports.removeAwardedAchievement = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -792,13 +727,11 @@ exports.removeAwardedAchievement = async (req, res) => {
   }
 };
 
-// Get achievements and awarded achievements for a user in club
 exports.getUserAchievements = async (req, res) => {
   try {
     const clubId = req.params.clubId;
     const userId = req.user.id;
 
-    // Remove .populate() because achievements are embedded, not referenced
     const club = await Club.findById(clubId);
     if (!club) return res.status(404).json({ message: 'Club not found' });
 
@@ -806,10 +739,8 @@ exports.getUserAchievements = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    // Achievements awarded to user
     const userAwarded = club.awardedAchievements.filter(a => a.member.toString() === userId.toString());
 
-    // All achievements in club (embedded)
     const allAchievements = club.achievements;
 
     res.json({ success: true, userAchievements: userAwarded, allAchievements });
@@ -818,8 +749,6 @@ exports.getUserAchievements = async (req, res) => {
   }
 };
 
-
-// Student: submit feedback to club
 exports.submitFeedback = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -843,7 +772,6 @@ exports.submitFeedback = async (req, res) => {
   }
 };
 
-// Admin: get all feedback for club
 exports.getFeedbacks = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -860,7 +788,6 @@ exports.getFeedbacks = async (req, res) => {
   }
 };
 
-// Create contact directory entry (admin only)
 exports.addContact = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -884,7 +811,6 @@ exports.addContact = async (req, res) => {
   }
 };
 
-// Get contact directory (admins see all, members see only admin/officer roles)
 exports.getContactDirectory = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -908,7 +834,6 @@ exports.getContactDirectory = async (req, res) => {
   }
 };
 
-// Edit contact (admin only)
 exports.editContact = async (req, res) => {
   try {
     const clubId = req.params.clubId;
@@ -933,7 +858,6 @@ exports.editContact = async (req, res) => {
   }
 };
 
-// Delete contact (admin only)
 exports.deleteContact = async (req, res) => {
   try {
     const clubId = req.params.clubId;
